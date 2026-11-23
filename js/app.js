@@ -443,8 +443,9 @@ function diaperCard() {
   const last = lastOf("diaper");
   const sub = last ? `${t("diaperToday", { n: today.length, p: today.filter((l) => l.poop).length })} · ${agoStr(last.ts)}` : t("none");
   const tog = (k, lab) => `<button type="button" class="ctog${S.cream[k] ? " on" : ""}" data-act="cream" data-v="${k}" role="switch" aria-checked="${S.cream[k]}">${lab}</button>`;
+  const lp = S.logs.find((l) => l.type === "diaper" && l.poop);
   return `<div class="card dcard">
-    <div class="dhead"><span class="ico k-diaper">${svg("diaper")}</span><div><b>${t("diaper")}</b><span class="sub">${esc(sub)}</span></div></div>
+    <div class="dhead"><span class="ico k-diaper">${svg("diaper")}</span><div><b>${t("diaper")}</b><span class="sub">${esc(sub)}</span>${lp ? `<span class="sub lp">${t("lastPoop", { t: agoStr(lp.ts) })}</span>` : ""}</div></div>
     <div class="dlabel">${t("step1")}</div>
     <div class="ctogs">${tog("bep", t("bepanthen"))}${tog("sudo", t("sudocrem"))}</div>
     <div class="dlabel">${t("step2")}</div>
@@ -654,6 +655,15 @@ function render(force = false) {
 // ───────────────────────── sheets ─────────────────────────
 function closeSheet() { $("#sheet-root").innerHTML = ""; }
 
+// Quick-pick amounts come from what you actually log (most common recent values).
+function amtChips(type, fallback) {
+  const cnt = new Map();
+  S.logs.filter((l) => l.type === type && Number(l.ml) > 0).slice(0, 30)
+    .forEach((l) => { const v = Math.round(Number(l.ml) / 5) * 5; cnt.set(v, (cnt.get(v) || 0) + 1); });
+  const top = [...cnt.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]).slice(0, 5).map((e) => e[0]).sort((a, b) => a - b);
+  return top.length >= 3 ? top : fallback;
+}
+
 function sheetHTML(type) {
   const T = TYPES[type];
   const last = lastOf(type);
@@ -664,7 +674,7 @@ function sheetHTML(type) {
     fields += `<div class="seg"><button type="button" class="on" data-act="kind" data-v="breast">${t("breastMilk")}</button><button type="button" data-act="kind" data-v="formula">${t("formula")}</button></div><input type="hidden" name="kind" value="breast">`;
   }
   if (type === "feed" || type === "pump") {
-    const amts = type === "feed" ? [60, 90, 120, 150] : [60, 100, 150, 200];
+    const amts = amtChips(type, type === "feed" ? [30, 45, 60, 90, 120] : [60, 100, 150, 200]);
     fields += `<div class="field"><span>${t("amountMl")}</span>
       <input class="input" name="ml" type="number" inputmode="numeric" min="1" max="1000" step="1" required placeholder="0" value="${last ? esc(last.ml) : ""}" aria-label="${t("amountMl")}">
       <div class="amts">${sug ? `<button type="button" class="chip sug" data-act="amt" data-v="${sug}">${t("suggested", { n: sug })}</button>` : ""}${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div>${type === "feed" ? `<div class="hint" id="budget-hint"></div>` : ""}</div>`;
@@ -675,7 +685,8 @@ function sheetHTML(type) {
     fields += `<div class="field"><span>${t("poop")}</span><div class="seg" style="margin-bottom:0"><button type="button" class="on" data-act="poop" data-v="">${t("poopNone")}</button>${["s", "m", "l"].map((s) => `<button type="button" data-act="poop" data-v="${s}">${s.toUpperCase()}</button>`).join("")}</div><input type="hidden" name="poop" value=""></div>
       <div class="field"><span>${t("creamLabel")}</span><label class="check"><input type="checkbox" name="bep"${S.cream.bep ? " checked" : ""}> ${t("bepanthen")}</label><label class="check"><input type="checkbox" name="sudo"${S.cream.sudo ? " checked" : ""}> ${t("sudocrem")}</label></div>`;
   }
-  fields += `<label class="field"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(Date.now())}"></label>`;
+  fields += `<label class="field" style="margin-bottom:10px"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(Date.now())}"></label>
+    <div class="amts" style="margin-bottom:16px">${[0, 15, 30, 60, 120].map((m) => `<button type="button" class="chip" data-act="ago" data-v="${m}">${m ? t("ago", { t: m < 60 ? t("mOnly", { m }) : t("hOnly", { h: m / 60 }) }) : t("nowChip")}</button>`).join("")}</div>`;
   fields += `<label class="field"><span>${t("note")}</span><textarea class="input" name="note" maxlength="200"></textarea></label>`;
   if (type === "feed") fields += `<label class="check"><input type="checkbox" name="startTimer" checked> ${t("startTimerAfter")}</label>`;
   return `<div class="backdrop" data-act="close"></div>
@@ -885,6 +896,11 @@ document.addEventListener("click", (e) => {
     case "kind": {
       el.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === el));
       $("#sheet-form input[name=kind]").value = v; break;
+    }
+    case "ago": {
+      const i = $("#sheet-form input[name=when]");
+      i.value = toLocalInput(Date.now() - Number(v) * 60000);
+      updateBudgetHint(); break;
     }
     case "amt": { const i = $("#sheet-form input[name=ml]"); i.value = v; updateBudgetHint(); break; }
     case "every":

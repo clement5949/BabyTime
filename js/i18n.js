@@ -10,7 +10,7 @@ const D = {
     // home
     milkToday: "Milk today", feedsCount: "Feeds: {n}", pumpedToday: "Pumped today", pumpsCount: "Sessions: {n}",
     lastFeed: "Last feed", noFeedYet: "No feeds yet", ago: "{t} ago", justNow: "just now",
-    hm: "{h}h {m}m", mOnly: "{m}m", dh: "{d}d {h}h",
+    hm: "{h}h {m}m", hOnly: "{h}h", mOnly: "{m}m", dh: "{d}d {h}h",
     recent: "Recent", seeAll: "See all", nothingYet: "Nothing logged yet",
     // timer
     feedTimer: "Feeding timer", timerPlan: "Relax {a} min, then burp {b} min", start: "Start",
@@ -57,6 +57,7 @@ const D = {
     diaper: "Diaper", diapers: "Diapers", wet: "Wet", poop: "Poop", poopNone: "No poop",
     step1: "1 · Cream used (tap to switch on or off)", step2: "2 · Tap what you changed. It saves right away.", wetBtn: "Wet only",
     creamLabel: "Cream", bepanthen: "Bepanthen", sudocrem: "Sudocrem",
+    nowChip: "Now", lastPoop: "Last poop: {t}",
     diaperToday: "Today: {n} · poop {p}", diaperMore: "Add with time or note", loggedDiaper: "Diaper", diaperN: "Diapers {n}",
     importTitle: "Import records", importDesc: "Paste a records file here, or choose one. Records already in the app are skipped, so it is safe to import twice.",
     importPaste: "Review pasted", importFile: "Choose file", importBad: "Couldn't read that. Paste the whole text of the file.",
@@ -90,7 +91,7 @@ const D = {
     demoBanner: "演示模式：数据只保存在本机",
     milkToday: "今日奶量", feedsCount: "{n} 次喂奶", pumpedToday: "今日泵奶", pumpsCount: "{n} 次",
     lastFeed: "上次喂奶", noFeedYet: "还没有喂奶记录", ago: "{t}前", justNow: "刚刚",
-    hm: "{h}小时{m}分钟", mOnly: "{m}分钟", dh: "{d}天{h}小时",
+    hm: "{h}小时{m}分钟", hOnly: "{h}小时", mOnly: "{m}分钟", dh: "{d}天{h}小时",
     recent: "最近记录", seeAll: "查看全部", nothingYet: "还没有记录",
     feedTimer: "喂奶计时", timerPlan: "放松 {a} 分钟，然后拍嗝 {b} 分钟", start: "开始",
     relaxPhase: "让宝宝放松", relaxDesc: "保持安静，竖抱宝宝",
@@ -131,6 +132,7 @@ const D = {
     diaper: "尿布", diapers: "尿布", wet: "小便", poop: "大便", poopNone: "没有大便",
     step1: "1 · 用了哪种膏（点一下开关）", step2: "2 · 点一下换了什么，会立即保存。", wetBtn: "只有小便",
     creamLabel: "护臀膏", bepanthen: "Bepanthen", sudocrem: "Sudocrem",
+    nowChip: "现在", lastPoop: "上次大便：{t}",
     diaperToday: "今天：{n} 片 · 大便 {p} 次", diaperMore: "添加时间或备注", loggedDiaper: "尿布", diaperN: "尿布 {n}",
     importTitle: "导入记录", importDesc: "在此粘贴记录文件，或选择文件。已在应用中的记录会自动跳过，重复导入也很安全。",
     importPaste: "检查粘贴内容", importFile: "选择文件", importBad: "无法读取。请粘贴文件的全部文字。",

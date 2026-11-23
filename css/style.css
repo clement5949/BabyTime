@@ -93,6 +93,7 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .k-diaper { background: var(--diaper-t); color: var(--diaper); }
 .dhead { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .dhead b { display: block; font-size: 16px; } .dhead .sub { display: block; color: var(--muted); font-size: 13px; margin-top: 1px; }
+.dhead .sub.lp { color: var(--ink); font-weight: 600; }
 .dlabel { color: var(--muted); font-size: 13px; margin: 14px 0 8px; font-weight: 550; }
 .dgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .dbtn { height: 54px; border-radius: 14px; background: var(--diaper); color: var(--diaper-ink); font-weight: 700; font-size: 14.5px; }
