@@ -442,13 +442,14 @@ function diaperCard() {
   const today = S.logs.filter((l) => l.type === "diaper" && l.ts >= d0);
   const last = lastOf("diaper");
   const sub = last ? `${t("diaperToday", { n: today.length, p: today.filter((l) => l.poop).length })} · ${agoStr(last.ts)}` : t("none");
-  const tog = (k, lab) => `<button type="button" class="chip tog${S.cream[k] ? " on" : ""}" data-act="cream" data-v="${k}" aria-pressed="${S.cream[k]}">${lab}</button>`;
+  const tog = (k, lab) => `<button type="button" class="ctog${S.cream[k] ? " on" : ""}" data-act="cream" data-v="${k}" role="switch" aria-checked="${S.cream[k]}">${lab}</button>`;
   return `<div class="card dcard">
     <div class="dhead"><span class="ico k-diaper">${svg("diaper")}</span><div><b>${t("diaper")}</b><span class="sub">${esc(sub)}</span></div></div>
-    <div class="dlabel">${t("creamLabel")}</div>
-    <div class="chips" style="margin-bottom:14px">${tog("bep", t("bepanthen"))}${tog("sudo", t("sudocrem"))}</div>
+    <div class="dlabel">${t("step1")}</div>
+    <div class="ctogs">${tog("bep", t("bepanthen"))}${tog("sudo", t("sudocrem"))}</div>
+    <div class="dlabel">${t("step2")}</div>
     <div class="dgrid">
-      <button class="dbtn" data-act="diaper" data-v="">${t("wet")}</button>
+      <button class="dbtn" data-act="diaper" data-v="">${t("wetBtn")}</button>
       ${["s", "m", "l"].map((s) => `<button class="dbtn" data-act="diaper" data-v="${s}">${t("poop")} ${s.toUpperCase()}</button>`).join("")}
     </div>
     <button class="linkbtn" data-act="open" data-v="diaper" style="margin-top:12px">${t("diaperMore")}</button>
