@@ -51,6 +51,7 @@ const D = {
     sendLinkDesc: "Open it on their phone once. Anyone with this link can see and edit your records, so only share it with family.",
     connectErr: "Couldn't connect. Check your internet and that Anonymous sign-in is turned on in Firebase.",
     retry: "Try again",
+    soundBlocked: "Couldn't play sound. Turn up the volume and tap again.", soundOffNote: "Alert sound is turned off.",
   },
   zh: {
     appName: "宝宝记录",
@@ -96,6 +97,7 @@ const D = {
     sendLinkDesc: "在她的手机上打开一次即可。拿到链接的人都能查看和修改记录，请只分享给家人。",
     connectErr: "连接失败。请检查网络，并确认 Firebase 已开启匿名登录。",
     retry: "重试",
+    soundBlocked: "无法播放声音。请调高音量后再点一次。", soundOffNote: "提示音已关闭。",
   },
 };
 

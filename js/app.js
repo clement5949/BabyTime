@@ -141,33 +141,71 @@ function syncSeen() {
   if (!S.seen || S.seen.id !== S.timer.id) S.seen = { id: S.timer.id, phase: phaseOf(S.timer) };
 }
 
-// audio (must be unlocked by a tap on iOS)
-let actx;
+// Audio: chimes are pre-rendered into small WAV clips and played through one <audio>
+// element. Unlike Web Audio, this still plays on iPhone when the silent switch is on.
+const CHIME = { burp: [[659, 0.28], [880, 0.28], [1175, 0.7]], done: [[784, 0.3], [659, 0.3], [523, 0.9]] };
+
+function makeWav(notes, repeats, gapSec) {
+  const sr = 22050, seq = [];
+  for (let r = 0; r < repeats; r++) {
+    for (const [f, d] of notes) {
+      const n = Math.floor(d * sr);
+      for (let i = 0; i < n; i++) {
+        const tt = i / sr;
+        seq.push(Math.sin(2 * Math.PI * f * tt) * 0.6 * Math.min(1, tt / 0.02) * Math.exp((-3.2 * tt) / d));
+      }
+    }
+    for (let i = 0, g = Math.floor(gapSec * sr); i < g; i++) seq.push(0);
+  }
+  const n = seq.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, seq[i])) * 32767, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+
+const player = new Audio();
+player.preload = "auto";
+let clips = null, audioReady = false;
+
+function prepAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}
+  clips = clips || {
+    burp: makeWav(CHIME.burp, 2, 0.5),
+    done: makeWav(CHIME.done, 2, 0.5),
+    silent: makeWav([[0, 0.1]], 1, 0),
+  };
+}
+// iPhones only allow sound after a tap, so the first tap anywhere "unlocks" the player.
 function unlockAudio() {
+  if (audioReady) return;
   try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === "suspended") actx.resume();
+    prepAudio();
+    player.src = clips.silent;
+    const p = player.play();
+    if (p && p.then) p.then(() => { audioReady = true; }).catch(() => {});
   } catch {}
 }
-function chime(notes) {
-  if (!actx || !S.sound) return;
-  let at = actx.currentTime + 0.03;
-  for (const [f, d] of notes) {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = "sine"; o.frequency.value = f;
-    g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(0.28, at + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.001, at + d);
-    o.connect(g).connect(actx.destination);
-    o.start(at); o.stop(at + d + 0.05);
-    at += d * 0.85;
+async function chime(kind) {
+  if (!S.sound) return false;
+  try {
+    prepAudio();
+    player.src = clips[kind];
+    player.currentTime = 0;
+    await player.play();
+    audioReady = true;
+    return true;
+  } catch (e) {
+    console.warn("[audio]", e);
+    return false;
   }
 }
-const CHIME = { burp: [[659, 0.28], [880, 0.28], [1175, 0.7]], done: [[784, 0.3], [659, 0.3], [523, 0.9]] };
+
 function alertPhase(p) {
-  const notes = p === "burp" ? CHIME.burp : CHIME.done;
-  chime(notes);
-  setTimeout(() => chime(notes), 1500);
+  chime(p === "burp" ? "burp" : "done");
   if (navigator.vibrate) navigator.vibrate(p === "burp" ? [300, 150, 300] : [500, 200, 500, 200, 500]);
   toast(p === "burp" ? t("burpNow") : t("allDone"), 5000);
   S.pulse = true;
@@ -573,9 +611,12 @@ document.addEventListener("click", (e) => {
     case "lang": setLang(v); render(true); break;
     case "sound":
       S.sound = v === "on"; localStorage.setItem("bt_sound", v);
-      if (S.sound) { unlockAudio(); chime(CHIME.burp); }
+      if (S.sound) chime("burp");
       render(true); break;
-    case "test-sound": unlockAudio(); chime(CHIME.burp); if (navigator.vibrate) navigator.vibrate(200); break;
+    case "test-sound":
+      if (navigator.vibrate) navigator.vibrate(200);
+      chime("burp").then((ok) => { if (!ok) toast(S.sound ? t("soundBlocked") : t("soundOffNote"), 5000); });
+      break;
     case "create-space": S.justCreated = true; setFamily(newCode()); break;
     case "copy-link": copyLink(); break;
     case "share-link": shareLink(); break;
