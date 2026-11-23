@@ -15,6 +15,7 @@ const ICONS = {
   weight: '<rect x="3.5" y="4" width="17" height="16" rx="4.5"/><path d="M8.5 10.5a3.5 3.5 0 0 1 7 0"/><path d="M12 10.5l1.8-1.8"/>',
   probiotic: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
   spray: '<path d="M8 21v-8h6v8z"/><path d="M9 13V9h4v4"/><path d="M10.5 9V6h1v3"/><path d="M15.5 5.5h3M15.5 8l2.5 1M15.5 3l2.5-1"/>',
+  diaper: '<path d="M3.5 6h17v4.5c0 4-3.5 7.5-8.5 7.5S3.5 14.5 3.5 10.5z"/><path d="M8 6v3M16 6v3"/>',
   home: '<path d="M3.5 11 12 4l8.5 7v8.5a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z"/>',
   history: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   trends: '<path d="M4 4v16h16"/><path d="M8 15l3-4 3 2 5-7"/>',
@@ -30,6 +31,11 @@ const TYPES = {
   temp: { cls: "k-temp", icon: "temp", title: () => t("temp"), value: (l) => `${Number(l.c).toFixed(1)} °C` },
   weight: { cls: "k-weight", icon: "weight", title: () => t("weight"), value: (l) => `${Number(l.kg).toFixed(2)} kg` },
   probiotic: { cls: "k-probiotic", icon: "probiotic", title: () => t("probiotic"), value: () => "✓" },
+  diaper: {
+    cls: "k-diaper", icon: "diaper", title: () => t("diaper"),
+    value: (l) => (l.poop ? `${t("poop")} ${{ s: "S", m: "M", l: "L" }[l.poop] || ""}`.trim() : t("wet")),
+    extra: (l) => [l.bep && t("bepanthen"), l.sudo && t("sudocrem")].filter(Boolean).join(" + "),
+  },
   spray: { cls: "k-spray", icon: "spray", title: () => t("spray"), value: () => "✓" },
 };
 const QUICK = ["feed", "pump", "temp", "weight"];
@@ -37,6 +43,10 @@ const CARE = ["probiotic", "spray"];
 const HIGH_TEMP = 38.0;
 
 // ───────────────────────── state ─────────────────────────
+const loadCream = () => {
+  try { const c = JSON.parse(localStorage.getItem("bt_cream")); if (c && typeof c === "object") return { bep: !!c.bep, sudo: !!c.sudo }; } catch {}
+  return { bep: true, sudo: true };
+};
 let store;
 let unsubs = [];
 const S = {
@@ -44,7 +54,7 @@ const S = {
   settings: { babyName: "", relaxMin: 5, burpMin: 10, mlPerKg: 150, feedEvery: 3 },
   tab: "home", filter: "all", range: 7,
   sound: localStorage.getItem("bt_sound") !== "off",
-  seen: null, pulse: false, dirty: false, err: "", family: null, justCreated: false,
+  cream: loadCream(), imp: null, seen: null, pulse: false, dirty: false, err: "", family: null, justCreated: false,
 };
 
 // ───────────────────────── helpers ─────────────────────────
@@ -273,7 +283,7 @@ function logRow(l) {
   const T = TYPES[l.type];
   if (!T) return "";
   const high = l.type === "temp" && Number(l.c) >= HIGH_TEMP ? `<span class="badge">${t("high")}</span>` : "";
-  const sub = [whenStr(l.ts), byName(l.by), l.note].filter(Boolean).join(" · ");
+  const sub = [whenStr(l.ts), byName(l.by), T.extra ? T.extra(l) : "", l.note].filter(Boolean).join(" · ");
   return `<button class="item" data-act="entry" data-id="${esc(l.id)}">
     <span class="ico ${T.cls}">${svg(T.icon)}</span>
     <span class="main"><span class="ttl">${esc(T.title(l))}${high}</span><span class="sub">${esc(sub)}</span></span>
@@ -427,6 +437,24 @@ function careList() {
   }).join("");
 }
 
+function diaperCard() {
+  const d0 = startOfDay(Date.now());
+  const today = S.logs.filter((l) => l.type === "diaper" && l.ts >= d0);
+  const last = lastOf("diaper");
+  const sub = last ? `${t("diaperToday", { n: today.length, p: today.filter((l) => l.poop).length })} · ${agoStr(last.ts)}` : t("none");
+  const tog = (k, lab) => `<button type="button" class="chip tog${S.cream[k] ? " on" : ""}" data-act="cream" data-v="${k}" aria-pressed="${S.cream[k]}">${lab}</button>`;
+  return `<div class="card dcard">
+    <div class="dhead"><span class="ico k-diaper">${svg("diaper")}</span><div><b>${t("diaper")}</b><span class="sub">${esc(sub)}</span></div></div>
+    <div class="dlabel">${t("creamLabel")}</div>
+    <div class="chips" style="margin-bottom:14px">${tog("bep", t("bepanthen"))}${tog("sudo", t("sudocrem"))}</div>
+    <div class="dgrid">
+      <button class="dbtn" data-act="diaper" data-v="">${t("wet")}</button>
+      ${["s", "m", "l"].map((s) => `<button class="dbtn" data-act="diaper" data-v="${s}">${t("poop")} ${s.toUpperCase()}</button>`).join("")}
+    </div>
+    <button class="linkbtn" data-act="open" data-v="diaper" style="margin-top:12px">${t("diaperMore")}</button>
+  </div>`;
+}
+
 function homeView() {
   const now = Date.now(), d0 = startOfDay(now);
   const today = S.logs.filter((l) => l.ts >= d0);
@@ -454,6 +482,7 @@ function homeView() {
       ${timerCard()}
       ${budgetCard()}
       <div class="grid2">${tiles}</div>
+      ${diaperCard()}
       <div class="list">${careList()}</div>
       <div class="grid2">
         <div class="card stat">
@@ -475,7 +504,7 @@ function homeView() {
 
 function historyView() {
   const f = S.filter;
-  const chips = [["all", "all"], ["feed", "feeds"], ["pump", "pumps"], ["temp", "temps"], ["weight", "weights"], ["care", "care"]]
+  const chips = [["all", "all"], ["feed", "feeds"], ["pump", "pumps"], ["temp", "temps"], ["weight", "weights"], ["diaper", "diapers"], ["care", "care"]]
     .map(([k, lab]) => `<button class="chip${f === k ? " on" : ""}" data-act="filter" data-v="${k}">${t(lab)}</button>`).join("");
   const list = S.logs.filter((l) => TYPES[l.type] && (f === "all" || l.type === f || (f === "care" && CARE.includes(l.type))));
   const groups = [];
@@ -487,7 +516,8 @@ function historyView() {
   }
   const body = groups.map((g) => {
     const all = S.logs.filter((l) => dayKey(l.ts) === g.k);
-    const totals = t("dayTotals", { a: sumMl(all.filter((l) => l.type === "feed")), b: sumMl(all.filter((l) => l.type === "pump")) });
+    const nd = all.filter((l) => l.type === "diaper").length;
+    const totals = t("dayTotals", { a: sumMl(all.filter((l) => l.type === "feed")), b: sumMl(all.filter((l) => l.type === "pump")) }) + (nd ? ` · ${t("diaperN", { n: nd })}` : "");
     return `<div class="dayhead"><b>${dayLabel(g.ts)}</b><span>${totals}</span></div><div class="list">${g.items.map(logRow).join("")}</div>`;
   }).join("");
   return `<div class="top"><h1>${t("tabHistory")}</h1></div>
@@ -558,6 +588,12 @@ function settingsView() {
         <div class="row2"><button class="btn ghost" data-act="copy-link">${t("copy")}</button><button class="btn ghost" data-act="share-link">${t("share")}</button></div>
         <p style="color:var(--muted);font-size:13px;margin:12px 0 0">${t("privateLinkDesc")}</p>
         <button class="link" data-act="leave-space">${t("leaveSpace")}</button>` : ""}
+      </div>
+      <div class="card">
+        <div class="ctitle">${t("importTitle")}</div>
+        <p style="color:var(--muted);font-size:13px;margin:0 0 12px">${t("importDesc")}</p>
+        <textarea class="input" id="imp-text" rows="3" spellcheck="false" autocapitalize="off" placeholder='[{"type":"pump","ts":…,"ml":120}]'></textarea>
+        <div class="row2" style="margin-top:12px"><button class="btn ghost" data-act="import-review">${t("importPaste")}</button><label class="btn ghost filebtn">${t("importFile")}<input type="file" id="imp-file" accept=".json,application/json,text/plain" hidden></label></div>
       </div>
       <p style="color:var(--muted);font-size:13px;margin:4px 4px 0">${t("timerNote")}</p>
     </div>`;
@@ -634,6 +670,10 @@ function sheetHTML(type) {
   }
   if (type === "temp") fields += `<label class="field"><span>${t("tempC")}</span><input class="input" name="c" type="number" inputmode="decimal" min="30" max="45" step="0.1" required placeholder="36.8"></label>`;
   if (type === "weight") fields += `<label class="field"><span>${t("weightKg")}</span><input class="input" name="kg" type="number" inputmode="decimal" min="0.5" max="30" step="0.01" required placeholder="4.50"></label>`;
+  if (type === "diaper") {
+    fields += `<div class="field"><span>${t("poop")}</span><div class="seg" style="margin-bottom:0"><button type="button" class="on" data-act="poop" data-v="">${t("poopNone")}</button>${["s", "m", "l"].map((s) => `<button type="button" data-act="poop" data-v="${s}">${s.toUpperCase()}</button>`).join("")}</div><input type="hidden" name="poop" value=""></div>
+      <div class="field"><span>${t("creamLabel")}</span><label class="check"><input type="checkbox" name="bep"${S.cream.bep ? " checked" : ""}> ${t("bepanthen")}</label><label class="check"><input type="checkbox" name="sudo"${S.cream.sudo ? " checked" : ""}> ${t("sudocrem")}</label></div>`;
+  }
   fields += `<label class="field"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(Date.now())}"></label>`;
   fields += `<label class="field"><span>${t("note")}</span><textarea class="input" name="note" maxlength="200"></textarea></label>`;
   if (type === "feed") fields += `<label class="check"><input type="checkbox" name="startTimer" checked> ${t("startTimerAfter")}</label>`;
@@ -651,7 +691,7 @@ function entrySheet(id) {
   const l = S.logs.find((x) => x.id === id);
   if (!l || !TYPES[l.type]) return;
   const T = TYPES[l.type];
-  const rows = [[whenStr(l.ts), ""], [byName(l.by), ""], [l.note || "", ""]].filter((r) => r[0]);
+  const rows = [[whenStr(l.ts), ""], [byName(l.by), ""], [T.extra ? T.extra(l) : "", ""], [l.note || "", ""]].filter((r) => r[0]);
   $("#sheet-root").innerHTML = `<div class="backdrop" data-act="close"></div>
     <div class="sheet">
       <div class="grab"></div>
@@ -695,6 +735,86 @@ function quickLog(type) {
   if (navigator.vibrate) navigator.vibrate(30);
 }
 
+function logDiaper(poop) {
+  const now = Date.now(), key = "diaper" + poop;
+  if (S.q && S.q.type === key && now - S.q.t < 3000) return; // ignore accidental double-tap
+  S.q = { type: key, t: now };
+  unlockAudio();
+  const log = { type: "diaper", ts: now, by: myName() };
+  if (poop) log.poop = poop;
+  if (S.cream.bep) log.bep = true;
+  if (S.cream.sudo) log.sudo = true;
+  S.undoId = store.addLog(log);
+  const T = TYPES.diaper, ex = T.extra(log);
+  toast(`✓ ${T.value(log)}${ex ? " · " + ex : ""}`, 6000, { act: "undo", label: t("undo") });
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+// ───────────────────────── import ─────────────────────────
+// Brings in records from a JSON list (e.g. copied from a paper notebook). Records that
+// look like ones already in the app are skipped, so importing twice is safe.
+function parseImport(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { return null; }
+  if (data && !Array.isArray(data)) data = data.records;
+  if (!Array.isArray(data)) return null;
+  const out = [], now = Date.now();
+  for (const r of data.slice(0, 500)) {
+    if (!r || !TYPES[r.type]) continue;
+    const ts = Number(r.ts);
+    if (!Number.isFinite(ts) || ts < 1577836800000 || ts > now + DAY) continue;
+    const o = { type: r.type, ts, by: String(r.by || "Import").slice(0, 20) };
+    if (r.type === "feed" || r.type === "pump") {
+      const ml = Number(r.ml);
+      if (!(ml > 0 && ml <= 1000)) continue;
+      o.ml = ml;
+      if (r.type === "feed") o.kind = r.kind === "formula" ? "formula" : "breast";
+    } else if (r.type === "temp") {
+      const c = Number(r.c);
+      if (!(c >= 30 && c <= 45)) continue;
+      o.c = c;
+    } else if (r.type === "weight") {
+      const kg = Number(r.kg);
+      if (!(kg >= 0.5 && kg <= 30)) continue;
+      o.kg = kg;
+    } else if (r.type === "diaper") {
+      if (["s", "m", "l", "u"].includes(r.poop)) o.poop = r.poop;
+      if (r.bep) o.bep = true;
+      if (r.sudo) o.sudo = true;
+    }
+    const note = String(r.note || "").trim().slice(0, 200);
+    if (note) o.note = note;
+    out.push(o);
+  }
+  return out;
+}
+const MIN = 60e3;
+const isDup = (r) => S.logs.some((l) => l.type === r.type && (
+  r.type === "temp" || r.type === "weight" ? dayKey(l.ts) === dayKey(r.ts)
+  : r.type === "feed" || r.type === "pump" ? Math.abs(l.ts - r.ts) <= 10 * MIN || (Math.abs(l.ts - r.ts) <= 30 * MIN && Number(l.ml) === r.ml)
+  : Math.abs(l.ts - r.ts) <= 5 * MIN));
+function importSheet(items) {
+  const fresh = items.filter((r) => !isDup(r)), skip = items.filter((r) => isDup(r));
+  S.imp = fresh;
+  const cnt = (arr) => [["feed", "feeds"], ["pump", "pumps"], ["diaper", "diapers"], ["temp", "temps"], ["weight", "weights"]]
+    .map(([k, lab]) => { const n = arr.filter((r) => r.type === k).length; return n ? `${t(lab)} ${n}` : ""; }).filter(Boolean).join(" · ") || "—";
+  const line = (r) => `<div class="meta" style="font-size:14px;margin-top:4px">${esc(whenStr(r.ts))} · ${esc(TYPES[r.type].title(r))} ${esc(TYPES[r.type].value(r))}</div>`;
+  $("#sheet-root").innerHTML = `<div class="backdrop" data-act="close"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>${t("importTitle")}</h3>
+      <div class="stat" style="margin-bottom:16px"><div class="label">${t("importReady")}</div><div class="meta" style="font-size:16px;color:var(--ink);font-weight:650;margin-top:4px">${esc(cnt(fresh))}</div></div>
+      ${skip.length ? `<div class="stat" style="margin-bottom:20px"><div class="label">${t("importSkipped")}</div><div class="meta" style="font-size:14px">${esc(cnt(skip))}</div>${skip.slice(0, 8).map(line).join("")}${skip.length > 8 ? `<div class="meta">…</div>` : ""}</div>` : ""}
+      <button class="btn" data-act="import-go"${fresh.length ? "" : " disabled"}>${fresh.length ? t("importGo", { n: fresh.length }) : t("importNone")}</button>
+      <button class="link" data-act="close">${t("cancel")}</button>
+    </div>`;
+}
+function reviewImport(text) {
+  const items = parseImport(text);
+  if (!items || !items.length) { toast(t("importBad"), 5000, null, "warn"); return; }
+  importSheet(items);
+}
+
 function doSave(f) {
   if (!f.reportValidity()) return;
   unlockAudio();
@@ -706,6 +826,12 @@ function doSave(f) {
   if (type === "pump") log.ml = Number(fd.get("ml"));
   if (type === "temp") log.c = Number(fd.get("c"));
   if (type === "weight") log.kg = Number(fd.get("kg"));
+  if (type === "diaper") {
+    const p = String(fd.get("poop") || "");
+    if (["s", "m", "l"].includes(p)) log.poop = p;
+    if (fd.get("bep")) log.bep = true;
+    if (fd.get("sudo")) log.sudo = true;
+  }
   const note = String(fd.get("note") || "").trim();
   if (note) log.note = note;
   let msg = t("saved"), ms = 2400, kind = "";
@@ -766,6 +892,25 @@ document.addEventListener("click", (e) => {
       render(true); break;
     case "tips": tipsSheet(); break;
     case "quick": quickLog(v); break;
+    case "diaper": logDiaper(v); break;
+    case "cream":
+      S.cream = { ...S.cream, [v]: !S.cream[v] };
+      localStorage.setItem("bt_cream", JSON.stringify(S.cream));
+      render(true); break;
+    case "poop": {
+      el.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === el));
+      $("#sheet-form input[name=poop]").value = v; break;
+    }
+    case "import-review": reviewImport(($("#imp-text") || {}).value || ""); break;
+    case "import-go": {
+      const items = S.imp || [];
+      S.imp = null;
+      items.forEach((r) => store.addLog(r));
+      closeSheet();
+      const ta = $("#imp-text"); if (ta) ta.value = "";
+      toast(t("importDone", { n: items.length }), 5000);
+      break;
+    }
     case "undo":
       if (S.undoId) { store.deleteLog(S.undoId); S.undoId = null; S.q = null; }
       $("#toast").classList.remove("show");
@@ -817,6 +962,12 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("change", (e) => {
+  if (e.target.id === "imp-file") {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (file) file.text().then(reviewImport).catch(() => toast(t("importBad"), 5000, null, "warn"));
+    return;
+  }
   if (e.target.closest && e.target.closest("#sheet-form")) updateBudgetHint();
   const k = e.target.dataset && e.target.dataset.set;
   if (!k) return;
