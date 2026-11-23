@@ -9,8 +9,8 @@ function niceMax(v) {
 }
 
 // items: [{ label, v }]
-export function bars(items, { cls = "bar-feed", labelEvery = 1 } = {}) {
-  const max = niceMax(Math.max(...items.map((i) => i.v), 0));
+export function bars(items, { cls = "bar-feed", labelEvery = 1, ref = null } = {}) {
+  const max = niceMax(Math.max(...items.map((i) => i.v), ref || 0));
   const iw = (W - PL - PR) / items.length;
   const bw = Math.max(2, iw * 0.62);
   const y = (v) => PT + (H - PT - PB) * (1 - v / max);
@@ -20,6 +20,7 @@ export function bars(items, { cls = "bar-feed", labelEvery = 1 } = {}) {
     s += `<line x1="${PL}" x2="${W - PR}" y1="${y(v)}" y2="${y(v)}" class="grid"/>`;
     s += `<text x="${PL - 6}" y="${y(v) + 3}" class="axis" text-anchor="end">${Math.round(v)}</text>`;
   });
+  if (ref) s += `<line x1="${PL}" x2="${W - PR}" y1="${y(ref).toFixed(1)}" y2="${y(ref).toFixed(1)}" class="ref"/>`;
   items.forEach((it, i) => {
     const x = PL + i * iw + (iw - bw) / 2;
     if (it.v > 0) {

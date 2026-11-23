@@ -55,6 +55,12 @@ const D = {
     probiotic: "Probiotic", spray: "Nose spray", care: "Care", logNow: "Log now", undo: "Undo",
     loggedProbiotic: "Probiotic logged", loggedSpray: "Nose spray logged", todayN: "Today: {n}",
     editTime: "Time", saveTime: "Save time",
+    left: "{n} ml left", limitReached: "Daily limit reached", overBy: "Over today's limit by {n} ml",
+    basedOn: "Daily limit: {w} kg × {k} ml", needWeight: "Log your baby's weight to see the daily limit.", logWeight: "Log weight",
+    afterFeed: "After this feed: {n} ml left today", goesOver: "This feed goes over today's limit by {n} ml",
+    hitsLimit: "This feed reaches today's limit",
+    savedLeft: "Saved · {n} ml left today", savedOver: "Saved · OVER today's limit by {n} ml", savedLimit: "Saved · daily limit reached",
+    mlPerKg: "Daily milk limit (ml per kg)", limitLine: "Dashed line: daily limit ({n} ml)",
   },
   zh: {
     appName: "宝宝记录",
@@ -104,6 +110,12 @@ const D = {
     probiotic: "益生菌", spray: "鼻喷剂", care: "护理", logNow: "现在记录", undo: "撤销",
     loggedProbiotic: "已记录益生菌", loggedSpray: "已记录鼻喷剂", todayN: "今天：{n} 次",
     editTime: "时间", saveTime: "保存时间",
+    left: "今天还可喂 {n} ml", limitReached: "已达今日上限", overBy: "已超出今日上限 {n} ml",
+    basedOn: "每日上限：{w} kg × {k} ml", needWeight: "记录宝宝体重后即可显示每日上限。", logWeight: "记录体重",
+    afterFeed: "喂完后今天还可喂 {n} ml", goesOver: "这次会超出今日上限 {n} ml",
+    hitsLimit: "这次喂完刚好达到今日上限",
+    savedLeft: "已保存 · 今天还可喂 {n} ml", savedOver: "已保存 · 已超出今日上限 {n} ml！", savedLimit: "已保存 · 已达今日上限",
+    mlPerKg: "每日奶量上限（每公斤 ml）", limitLine: "虚线：每日上限（{n} ml）",
   },
 };
 

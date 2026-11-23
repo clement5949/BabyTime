@@ -41,7 +41,7 @@ let store;
 let unsubs = [];
 const S = {
   authReady: false, user: null, logs: [], timer: null,
-  settings: { babyName: "", relaxMin: 5, burpMin: 10 },
+  settings: { babyName: "", relaxMin: 5, burpMin: 10, mlPerKg: 150 },
   tab: "home", filter: "all", range: 7,
   sound: localStorage.getItem("bt_sound") !== "off",
   seen: null, pulse: false, dirty: false, err: "", family: null, justCreated: false,
@@ -112,9 +112,10 @@ const lastOf = (type) => S.logs.find((l) => l.type === type);
 const sumMl = (arr) => arr.reduce((s, l) => s + (Number(l.ml) || 0), 0);
 
 let toastTimer;
-function toast(msg, ms = 2400, action = null) {
+function toast(msg, ms = 2400, action = null, kind = "") {
   const el = $("#toast");
   el.textContent = msg;
+  el.classList.toggle("warn", kind === "warn");
   if (action) {
     const b = document.createElement("button");
     b.className = "toast-btn";
@@ -326,6 +327,41 @@ function shareBanner() {
   </div>`;
 }
 
+// Daily milk limit = latest logged weight (kg) x ml-per-kg (doctor's formula), per calendar day.
+function limitInfo() {
+  const w = lastOf("weight");
+  const kg = w ? Number(w.kg) : 0;
+  if (!(kg > 0)) return null;
+  const per = Number(S.settings.mlPerKg) || 150;
+  return { kg, per, limit: Math.round(kg * per) };
+}
+function usedOn(ts) {
+  const k = dayKey(ts);
+  return S.logs.filter((l) => l.type === "feed" && dayKey(l.ts) === k).reduce((s, l) => s + (Number(l.ml) || 0), 0);
+}
+function budgetCard() {
+  const used = usedOn(Date.now()), info = limitInfo();
+  if (!info) {
+    return `<div class="card stat budget">
+      <div class="label">${t("milkToday")}</div>
+      <div class="big">${used}<small>ml</small></div>
+      <div class="meta">${t("needWeight")}</div>
+      <button class="btn ghost" style="margin-top:14px" data-act="open" data-v="weight">${t("logWeight")}</button>
+    </div>`;
+  }
+  const left = info.limit - used;
+  const pct = Math.min(100, Math.round((used / info.limit) * 100));
+  const cls = left < 0 ? "over" : left <= info.limit * 0.1 ? "warn" : "ok";
+  const text = left < 0 ? t("overBy", { n: -left }) : left === 0 ? t("limitReached") : t("left", { n: left });
+  return `<div class="card stat budget ${cls}">
+    <div class="label">${t("milkToday")}</div>
+    <div class="big">${used}<small>/ ${info.limit} ml</small></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="status">${text}</div>
+    <div class="meta" style="margin-top:6px">${t("basedOn", { w: info.kg.toFixed(2), k: info.per })}</div>
+  </div>`;
+}
+
 function careList() {
   const d0 = startOfDay(Date.now());
   return CARE.map((k) => {
@@ -365,14 +401,15 @@ function homeView() {
     <div class="stack">
       ${S.justCreated && S.family ? shareBanner() : ""}
       ${timerCard()}
+      ${budgetCard()}
       <div class="grid2">${tiles}</div>
       <div class="list">${careList()}</div>
       <div class="grid2">
         <div class="card stat">
-          <div class="label">${t("milkToday")}</div>
-          <div class="big">${sumMl(feeds)}<small>ml</small></div>
+          <div class="label">${t("lastFeed")}</div>
+          <div class="big" style="font-size:24px">${lf ? dur(Date.now() - lf.ts) || t("justNow") : "—"}</div>
+          <div class="meta">${lf ? `${lf.ml} ml · ${timeStr(lf.ts)}` : t("noFeedYet")}</div>
           <div class="meta">${t("feedsCount", { n: feeds.length })}</div>
-          <div class="meta">${lf ? `${t("lastFeed")}: ${agoStr(lf.ts)}` : t("noFeedYet")}</div>
         </div>
         <div class="card stat">
           <div class="label">${t("pumpedToday")}</div>
@@ -432,12 +469,13 @@ function trendsView() {
   const card = (title, inner) => `<div class="card"><div class="ctitle">${title}</div>${inner}</div>`;
   const noData = `<div class="empty">${t("noData")}</div>`;
   const hasFeed = feedItems.some((i) => i.v > 0), hasPump = pumpItems.some((i) => i.v > 0);
+  const lim = limitInfo();
 
   const chips = [7, 30, 90].map((r) => `<button class="chip${n === r ? " on" : ""}" data-act="range" data-v="${r}">${t("d" + r)}</button>`).join("");
   return `<div class="top"><h1>${t("tabTrends")}</h1></div>
     <div class="chips" style="margin-bottom:16px">${chips}</div>
     <div class="stack">
-      ${card(t("milkPerDay"), hasFeed ? bars(feedItems, { cls: "bar-feed", labelEvery: every }) : noData)}
+      ${card(t("milkPerDay"), hasFeed ? bars(feedItems, { cls: "bar-feed", labelEvery: every, ref: lim ? lim.limit : null }) + (lim ? `<div class="meta" style="color:var(--muted);font-size:13px;margin-top:8px">${t("limitLine", { n: lim.limit })}</div>` : "") : noData)}
       ${card(t("pumpPerDay"), hasPump ? bars(pumpItems, { cls: "bar-pump", labelEvery: every }) : noData)}
       ${card(t("weightTrend"), wp.length ? line(wp, { t0, t1: now, dec: 2, cls: "line-weight", l0: short(t0), l1: short(now) }) : noData)}
       ${card(t("tempTrend"), tp.length ? line(tp, { t0, t1: now, ref: HIGH_TEMP, dec: 1, cls: "line-temp", l0: short(t0), l1: short(now) }) : noData)}
@@ -455,6 +493,7 @@ function settingsView() {
           <label class="field" style="margin:0"><span>${t("relaxMin")}</span><input class="input" type="number" inputmode="numeric" min="0" max="60" data-set="relaxMin" value="${esc(st.relaxMin)}"></label>
           <label class="field" style="margin:0"><span>${t("burpMin")}</span><input class="input" type="number" inputmode="numeric" min="1" max="60" data-set="burpMin" value="${esc(st.burpMin)}"></label>
         </div>
+        <label class="field" style="margin:16px 0 0"><span>${t("mlPerKg")}</span><input class="input" type="number" inputmode="numeric" min="50" max="300" data-set="mlPerKg" value="${esc(st.mlPerKg)}"></label>
       </div>
       <div class="card">
         <div class="field"><span>${t("language")}</span>${seg("lang", [["en", "English", lang === "en"], ["zh", "中文", lang === "zh"]])}</div>
@@ -538,7 +577,7 @@ function sheetHTML(type) {
     const amts = type === "feed" ? [60, 90, 120, 150] : [60, 100, 150, 200];
     fields += `<div class="field"><span>${t("amountMl")}</span>
       <input class="input" name="ml" type="number" inputmode="numeric" min="1" max="1000" step="1" required placeholder="0" value="${last ? esc(last.ml) : ""}" aria-label="${t("amountMl")}">
-      <div class="amts">${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div></div>`;
+      <div class="amts">${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div>${type === "feed" ? `<div class="hint" id="budget-hint"></div>` : ""}</div>`;
   }
   if (type === "temp") fields += `<label class="field"><span>${t("tempC")}</span><input class="input" name="c" type="number" inputmode="decimal" min="30" max="45" step="0.1" required placeholder="36.8"></label>`;
   if (type === "weight") fields += `<label class="field"><span>${t("weightKg")}</span><input class="input" name="kg" type="number" inputmode="decimal" min="0.5" max="30" step="0.01" required placeholder="4.50"></label>`;
@@ -575,8 +614,20 @@ function entrySheet(id) {
     </div>`;
 }
 
+function updateBudgetHint() {
+  const h = $("#budget-hint"), f = $("#sheet-form");
+  if (!h || !f) return;
+  const info = limitInfo(), ml = Number(f.elements.ml && f.elements.ml.value) || 0;
+  if (!info || !ml) { h.textContent = ""; h.className = "hint"; return; }
+  const ts = new Date(f.elements.when.value).getTime();
+  const left = info.limit - usedOn(Number.isFinite(ts) ? ts : Date.now()) - ml;
+  h.className = "hint " + (left < 0 ? "over" : "ok");
+  h.textContent = left < 0 ? t("goesOver", { n: -left }) : left === 0 ? t("hitsLimit") : t("afterFeed", { n: left });
+}
+
 function openSheet(type) {
   $("#sheet-root").innerHTML = sheetHTML(type);
+  updateBudgetHint();
   const el = $("#sheet-form input[name=ml], #sheet-form input[name=c], #sheet-form input[name=kg]");
   if (el && !el.value) setTimeout(() => el.focus(), 120);
 }
@@ -604,9 +655,20 @@ function doSave(f) {
   if (type === "weight") log.kg = Number(fd.get("kg"));
   const note = String(fd.get("note") || "").trim();
   if (note) log.note = note;
+  let msg = t("saved"), ms = 2400, kind = "";
+  if (type === "feed") {
+    const info = limitInfo();
+    if (info) {
+      const left = info.limit - usedOn(ts) - log.ml; // computed before this entry is added
+      ms = 6000;
+      if (left < 0) { msg = t("savedOver", { n: -left }); kind = "warn"; ms = 9000; }
+      else if (left === 0) { msg = t("savedLimit"); kind = "warn"; }
+      else msg = t("savedLeft", { n: left });
+    }
+  }
   store.addLog(log);
   closeSheet();
-  toast(t("saved"));
+  toast(msg, ms, null, kind);
   if (type === "feed" && fd.get("startTimer")) startTimer();
 }
 
@@ -644,7 +706,7 @@ document.addEventListener("click", (e) => {
       el.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === el));
       $("#sheet-form input[name=kind]").value = v; break;
     }
-    case "amt": { const i = $("#sheet-form input[name=ml]"); i.value = v; break; }
+    case "amt": { const i = $("#sheet-form input[name=ml]"); i.value = v; updateBudgetHint(); break; }
     case "quick": quickLog(v); break;
     case "undo":
       if (S.undoId) { store.deleteLog(S.undoId); S.undoId = null; S.q = null; }
@@ -692,7 +754,12 @@ document.addEventListener("submit", (e) => {
   else if (e.target.id === "sheet-form") doSave(e.target);
 });
 
+document.addEventListener("input", (e) => {
+  if (e.target.closest && e.target.closest("#sheet-form")) updateBudgetHint();
+});
+
 document.addEventListener("change", (e) => {
+  if (e.target.closest && e.target.closest("#sheet-form")) updateBudgetHint();
   const k = e.target.dataset && e.target.dataset.set;
   if (!k) return;
   let v = e.target.value;
@@ -703,6 +770,9 @@ document.addEventListener("change", (e) => {
   }
   if (k === "relaxMin" || k === "burpMin") {
     v = Math.max(k === "burpMin" ? 1 : 0, Math.min(60, Math.round(Number(v) || 0)));
+    e.target.value = v;
+  } else if (k === "mlPerKg") {
+    v = Math.max(50, Math.min(300, Math.round(Number(v) || 150)));
     e.target.value = v;
   } else v = v.trim();
   S.settings = { ...S.settings, [k]: v };
