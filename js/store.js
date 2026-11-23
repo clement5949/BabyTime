@@ -14,6 +14,7 @@ export const onAuth = impl.onAuth;
 export const watchLogs = impl.watchLogs;
 export const addLog = impl.addLog;
 export const deleteLog = impl.deleteLog;
+export const updateLog = impl.updateLog;
 export const watchTimer = impl.watchTimer;
 export const setTimer = impl.setTimer;
 export const clearTimer = impl.clearTimer;

@@ -30,7 +30,13 @@ const sorted = () => [...state.logs].sort((a, b) => b.ts - a.ts);
 export const watchLogs = (since, cb) =>
   watch("logs", () => cb(sorted().filter((l) => l.ts >= since)));
 export const addLog = (log) => {
-  state.logs.push({ ...log, id: "l" + Date.now() + Math.random().toString(36).slice(2, 6) });
+  const id = "l" + Date.now() + Math.random().toString(36).slice(2, 6);
+  state.logs.push({ ...log, id });
+  save(); emit("logs");
+  return id;
+};
+export const updateLog = (id, patch) => {
+  state.logs = state.logs.map((l) => (l.id === id ? { ...l, ...patch } : l));
   save(); emit("logs");
 };
 export const deleteLog = (id) => {

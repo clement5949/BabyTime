@@ -7,6 +7,8 @@
   --temp: #C8512A; --temp-t: #FADFD5;
   --weight: #2B6FAE; --weight-t: #DCEAF6;
   --warn: #C8372D;
+  --probiotic: #2E7D5B; --probiotic-t: #DDEFE5;
+  --spray: #6A58C9; --spray-t: #E6E1F7;
   --r: 20px; --gap: 16px;
 }
 @media (prefers-color-scheme: dark) {
@@ -19,6 +21,8 @@
     --temp: #EE8A63; --temp-t: #3C2118;
     --weight: #6FADE6; --weight-t: #1A2D40;
     --warn: #FF7A70;
+    --probiotic: #5FBF92; --probiotic-t: #1B3A2C;
+    --spray: #A89BF0; --spray-t: #2A2540;
   }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -82,6 +86,8 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .k-pump { background: var(--pump-t); color: var(--pump); }
 .k-temp { background: var(--temp-t); color: var(--temp); }
 .k-weight { background: var(--weight-t); color: var(--weight); }
+.k-probiotic { background: var(--probiotic-t); color: var(--probiotic); }
+.k-spray { background: var(--spray-t); color: var(--spray); }
 .tile .name { font-weight: 650; font-size: 16px; }
 .tile .lastv { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
@@ -94,6 +100,9 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .item .sub { color: var(--muted); font-size: 13px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item .ttl, .item .sub { display: block; }
 .item .val { font-weight: 650; font-size: 16px; font-variant-numeric: tabular-nums; }
+.pill { flex: none; font-size: 13px; font-weight: 650; padding: 8px 14px; border-radius: 999px; background: var(--btn); color: var(--btn-ink); }
+.toast-btn { margin-left: 10px; padding: 0 0 0 12px; border-left: 1px solid currentColor; font-weight: 700; color: inherit; opacity: .9; }
+.toast.has-action { pointer-events: auto; display: flex; align-items: center; white-space: nowrap; }
 .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: var(--temp-t); color: var(--warn); margin-left: 6px; vertical-align: 1px; }
 .empty { color: var(--muted); text-align: center; padding: 28px 16px; font-size: 14px; }
 .dayhead { display: flex; justify-content: space-between; align-items: baseline; margin: 24px 2px 10px; }

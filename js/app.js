@@ -13,6 +13,8 @@ const ICONS = {
   pump: '<path d="M12 3c3.2 4 6 7 6 10.5a6 6 0 0 1-12 0C6 10 8.8 7 12 3z"/>',
   temp: '<path d="M14 4v10.5a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/>',
   weight: '<rect x="3.5" y="4" width="17" height="16" rx="4.5"/><path d="M8.5 10.5a3.5 3.5 0 0 1 7 0"/><path d="M12 10.5l1.8-1.8"/>',
+  probiotic: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
+  spray: '<path d="M8 21v-8h6v8z"/><path d="M9 13V9h4v4"/><path d="M10.5 9V6h1v3"/><path d="M15.5 5.5h3M15.5 8l2.5 1M15.5 3l2.5-1"/>',
   home: '<path d="M3.5 11 12 4l8.5 7v8.5a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z"/>',
   history: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   trends: '<path d="M4 4v16h16"/><path d="M8 15l3-4 3 2 5-7"/>',
@@ -27,8 +29,11 @@ const TYPES = {
   pump: { cls: "k-pump", icon: "pump", title: () => t("pumpEntry"), value: (l) => `${l.ml} ml` },
   temp: { cls: "k-temp", icon: "temp", title: () => t("temp"), value: (l) => `${Number(l.c).toFixed(1)} °C` },
   weight: { cls: "k-weight", icon: "weight", title: () => t("weight"), value: (l) => `${Number(l.kg).toFixed(2)} kg` },
+  probiotic: { cls: "k-probiotic", icon: "probiotic", title: () => t("probiotic"), value: () => "✓" },
+  spray: { cls: "k-spray", icon: "spray", title: () => t("spray"), value: () => "✓" },
 };
 const QUICK = ["feed", "pump", "temp", "weight"];
+const CARE = ["probiotic", "spray"];
 const HIGH_TEMP = 38.0;
 
 // ───────────────────────── state ─────────────────────────
@@ -107,9 +112,17 @@ const lastOf = (type) => S.logs.find((l) => l.type === type);
 const sumMl = (arr) => arr.reduce((s, l) => s + (Number(l.ml) || 0), 0);
 
 let toastTimer;
-function toast(msg, ms = 2400) {
+function toast(msg, ms = 2400, action = null) {
   const el = $("#toast");
   el.textContent = msg;
+  if (action) {
+    const b = document.createElement("button");
+    b.className = "toast-btn";
+    b.dataset.act = action.act;
+    b.textContent = action.label;
+    el.append(" ", b);
+  }
+  el.classList.toggle("has-action", Boolean(action));
   el.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), ms);
@@ -313,6 +326,20 @@ function shareBanner() {
   </div>`;
 }
 
+function careList() {
+  const d0 = startOfDay(Date.now());
+  return CARE.map((k) => {
+    const last = lastOf(k);
+    const n = S.logs.filter((l) => l.type === k && l.ts >= d0).length;
+    const sub = last ? `${t("todayN", { n })} · ${agoStr(last.ts)}` : t("none");
+    return `<button class="item" data-act="quick" data-v="${k}">
+      <span class="ico ${TYPES[k].cls}">${svg(TYPES[k].icon)}</span>
+      <span class="main"><span class="ttl">${t(k)}</span><span class="sub">${esc(sub)}</span></span>
+      <span class="pill">+ ${t("logNow")}</span>
+    </button>`;
+  }).join("");
+}
+
 function homeView() {
   const now = Date.now(), d0 = startOfDay(now);
   const today = S.logs.filter((l) => l.ts >= d0);
@@ -339,6 +366,7 @@ function homeView() {
       ${S.justCreated && S.family ? shareBanner() : ""}
       ${timerCard()}
       <div class="grid2">${tiles}</div>
+      <div class="list">${careList()}</div>
       <div class="grid2">
         <div class="card stat">
           <div class="label">${t("milkToday")}</div>
@@ -359,9 +387,9 @@ function homeView() {
 
 function historyView() {
   const f = S.filter;
-  const chips = [["all", "all"], ["feed", "feeds"], ["pump", "pumps"], ["temp", "temps"], ["weight", "weights"]]
+  const chips = [["all", "all"], ["feed", "feeds"], ["pump", "pumps"], ["temp", "temps"], ["weight", "weights"], ["care", "care"]]
     .map(([k, lab]) => `<button class="chip${f === k ? " on" : ""}" data-act="filter" data-v="${k}">${t(lab)}</button>`).join("");
-  const list = S.logs.filter((l) => TYPES[l.type] && (f === "all" || l.type === f));
+  const list = S.logs.filter((l) => TYPES[l.type] && (f === "all" || l.type === f || (f === "care" && CARE.includes(l.type))));
   const groups = [];
   for (const l of list) {
     const k = dayKey(l.ts);
@@ -540,6 +568,8 @@ function entrySheet(id) {
         <div class="big">${esc(T.value(l))}</div>
         ${rows.map((r) => `<div class="meta" style="font-size:15px;margin-top:6px">${esc(r[0])}</div>`).join("")}
       </div>
+      <label class="field"><span>${t("editTime")}</span><input class="input" id="entry-when" type="datetime-local" value="${toLocalInput(l.ts)}"></label>
+      <button class="btn" data-act="save-time" data-id="${esc(l.id)}" style="margin-bottom:12px">${t("saveTime")}</button>
       <button class="btn danger" data-act="del" data-id="${esc(l.id)}">${t("del")}</button>
       <button class="link" data-act="close">${t("cancel")}</button>
     </div>`;
@@ -549,6 +579,16 @@ function openSheet(type) {
   $("#sheet-root").innerHTML = sheetHTML(type);
   const el = $("#sheet-form input[name=ml], #sheet-form input[name=c], #sheet-form input[name=kg]");
   if (el && !el.value) setTimeout(() => el.focus(), 120);
+}
+
+function quickLog(type) {
+  const now = Date.now();
+  if (S.q && S.q.type === type && now - S.q.t < 4000) return; // ignore accidental double-tap
+  S.q = { type, t: now };
+  unlockAudio();
+  S.undoId = store.addLog({ type, ts: now, by: myName() });
+  toast(t(type === "probiotic" ? "loggedProbiotic" : "loggedSpray"), 6000, { act: "undo", label: t("undo") });
+  if (navigator.vibrate) navigator.vibrate(30);
 }
 
 function doSave(f) {
@@ -605,6 +645,16 @@ document.addEventListener("click", (e) => {
       $("#sheet-form input[name=kind]").value = v; break;
     }
     case "amt": { const i = $("#sheet-form input[name=ml]"); i.value = v; break; }
+    case "quick": quickLog(v); break;
+    case "undo":
+      if (S.undoId) { store.deleteLog(S.undoId); S.undoId = null; S.q = null; }
+      $("#toast").classList.remove("show");
+      break;
+    case "save-time": {
+      const ts = new Date($("#entry-when").value).getTime();
+      if (Number.isFinite(ts)) { store.updateLog(el.dataset.id, { ts }); closeSheet(); toast(t("saved")); }
+      break;
+    }
     case "timer-start": unlockAudio(); startTimer(); break;
     case "timer-skip": skipRelax(); break;
     case "timer-clear": store.clearTimer(); break;

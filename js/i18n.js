@@ -52,6 +52,9 @@ const D = {
     connectErr: "Couldn't connect. Check your internet and that Anonymous sign-in is turned on in Firebase.",
     retry: "Try again",
     soundBlocked: "Couldn't play sound. Turn up the volume and tap again.", soundOffNote: "Alert sound is turned off.",
+    probiotic: "Probiotic", spray: "Nose spray", care: "Care", logNow: "Log now", undo: "Undo",
+    loggedProbiotic: "Probiotic logged", loggedSpray: "Nose spray logged", todayN: "Today: {n}",
+    editTime: "Time", saveTime: "Save time",
   },
   zh: {
     appName: "宝宝记录",
@@ -98,6 +101,9 @@ const D = {
     connectErr: "连接失败。请检查网络，并确认 Firebase 已开启匿名登录。",
     retry: "重试",
     soundBlocked: "无法播放声音。请调高音量后再点一次。", soundOffNote: "提示音已关闭。",
+    probiotic: "益生菌", spray: "鼻喷剂", care: "护理", logNow: "现在记录", undo: "撤销",
+    loggedProbiotic: "已记录益生菌", loggedSpray: "已记录鼻喷剂", todayN: "今天：{n} 次",
+    editTime: "时间", saveTime: "保存时间",
   },
 };
 

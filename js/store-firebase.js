@@ -44,7 +44,12 @@ export function watchLogs(sinceMs, cb) {
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), fail);
 }
 // Not awaited on purpose: offline writes only resolve once back online.
-export const addLog = (log) => { addDoc(logsCol(), { ...log, createdAt: Date.now() }).catch(fail); };
+export const addLog = (log) => {
+  const ref = doc(logsCol()); // id is generated on the phone, so it can be undone instantly
+  setDoc(ref, { ...log, createdAt: Date.now() }).catch(fail);
+  return ref.id;
+};
+export const updateLog = (id, patch) => { setDoc(doc(db, "families", fam, "logs", id), patch, { merge: true }).catch(fail); };
 export const deleteLog = (id) => { deleteDoc(doc(db, "families", fam, "logs", id)).catch(fail); };
 
 export const watchTimer = (cb) =>
