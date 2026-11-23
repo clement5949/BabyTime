@@ -134,6 +134,7 @@ textarea.input { height: 76px; padding: 12px 14px; resize: none; }
 .check input { width: 22px; height: 22px; accent-color: var(--ink); }
 .err { color: var(--warn); font-size: 14px; margin: -4px 0 12px; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.linkbox { font-size: 12px; line-height: 1.5; word-break: break-all; background: var(--chip); color: var(--muted); border-radius: 12px; padding: 10px 12px; -webkit-user-select: all; user-select: all; }
 
 /* sheet */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 20; animation: fade .2s; }

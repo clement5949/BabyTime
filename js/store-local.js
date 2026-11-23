@@ -19,10 +19,11 @@ function watch(k, push) {
   return () => subs[k].delete(f);
 }
 
-const user = { email: "demo@this-device" };
+const user = { id: "demo" };
+// Add ?family to the address to try the private-link screens in demo mode.
+export const needsFamily = new URLSearchParams(location.search).has("family");
+export const setFamily = () => {};
 export const onAuth = (cb) => { queueMicrotask(() => cb(user)); return () => {}; };
-export const signIn = async () => {};
-export const logOut = async () => {};
 
 const sorted = () => [...state.logs].sort((a, b) => b.ts - a.ts);
 

@@ -39,7 +39,7 @@ const S = {
   settings: { babyName: "", relaxMin: 5, burpMin: 10 },
   tab: "home", filter: "all", range: 7,
   sound: localStorage.getItem("bt_sound") !== "off",
-  seen: null, pulse: false, dirty: false, err: "", loginEmail: "",
+  seen: null, pulse: false, dirty: false, err: "", family: null, justCreated: false,
 };
 
 // ───────────────────────── helpers ─────────────────────────
@@ -58,6 +58,41 @@ const dayLabel = (ts) => {
 };
 const whenStr = (ts) => (startOfDay(ts) === startOfDay(Date.now()) ? timeStr(ts) : `${dayLabel(ts)} ${timeStr(ts)}`);
 const byName = (e) => String(e || "").split("@")[0];
+const myName = () => localStorage.getItem("bt_me") || "";
+
+// Private link = the app address + #k=<secret code>. The code is the key to the data.
+const FAM_KEY = "bt_family";
+const newCode = () => {
+  const a = new Uint8Array(24);
+  crypto.getRandomValues(a);
+  return btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+const parseCode = (s) => {
+  const raw = String(s || "");
+  const m = raw.match(/[#?&]k=([A-Za-z0-9_-]+)/);
+  const c = m ? m[1] : raw.trim();
+  return /^[A-Za-z0-9_-]{24,}$/.test(c) ? c : "";
+};
+const familyLink = () => `${location.origin}${location.pathname}#k=${S.family}`;
+function loadFamily() {
+  const code = parseCode(location.hash) || parseCode(localStorage.getItem(FAM_KEY));
+  if (!code) return null;
+  S.family = code;
+  localStorage.setItem(FAM_KEY, code);
+  // Keep the code in the address so "Add to Home Screen" captures it.
+  history.replaceState(null, "", familyLink());
+  return code;
+}
+function copyLink() {
+  const link = familyLink();
+  (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+    .then(() => toast(t("copied")))
+    .catch(() => toast(link, 8000));
+}
+function shareLink() {
+  if (navigator.share) navigator.share({ title: t("appName"), url: familyLink() }).catch(() => {});
+  else copyLink();
+}
 const dur = (ms) => {
   const m = Math.floor(ms / 60000);
   if (m < 1) return null;
@@ -93,7 +128,7 @@ const phaseOf = (tm, now = Date.now()) => {
 function startTimer() {
   const now = Date.now();
   const r = Number(S.settings.relaxMin) || 0, b = Number(S.settings.burpMin) || 0;
-  store.setTimer({ id: now, relaxEndsAt: now + r * 60000, burpEndsAt: now + (r + b) * 60000, relaxMin: r, burpMin: b, by: S.user.email });
+  store.setTimer({ id: now, relaxEndsAt: now + r * 60000, burpEndsAt: now + (r + b) * 60000, relaxMin: r, burpMin: b, by: myName() });
 }
 function skipRelax() {
   const tm = S.timer; if (!tm) return;
@@ -231,6 +266,15 @@ function timerCard() {
   </section>`;
 }
 
+function shareBanner() {
+  return `<div class="card">
+    <div class="ctitle">${t("sendLinkTitle")}</div>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 14px">${t("sendLinkDesc")}</p>
+    <div class="row2"><button class="btn ghost" data-act="copy-link">${t("copy")}</button><button class="btn" data-act="share-link">${t("share")}</button></div>
+    <button class="link" data-act="dismiss-share">${t("dismiss")}</button>
+  </div>`;
+}
+
 function homeView() {
   const now = Date.now(), d0 = startOfDay(now);
   const today = S.logs.filter((l) => l.ts >= d0);
@@ -254,6 +298,7 @@ function homeView() {
   return `
     <div class="top"><div><div class="sub">${esc(date)}</div><h1>${esc(S.settings.babyName || t("appName"))}</h1></div></div>
     <div class="stack">
+      ${S.justCreated && S.family ? shareBanner() : ""}
       ${timerCard()}
       <div class="grid2">${tiles}</div>
       <div class="grid2">
@@ -351,23 +396,39 @@ function settingsView() {
         <button class="btn ghost" data-act="test-sound">${t("testSound")}</button>
       </div>
       <div class="card">
-        <div class="sub" style="color:var(--muted);font-size:14px;margin-bottom:12px">${t("account", { e: esc(S.user.email) })}</div>
-        ${store.mode === "firebase" ? `<button class="btn ghost" data-act="signout">${t("signOut")}</button>` : ""}
+        <label class="field"><span>${t("yourName")}</span><input class="input" data-set="myName" value="${esc(myName())}" maxlength="20" autocomplete="off"></label>
+        ${store.needsFamily && S.family ? `
+        <div class="field" style="margin-bottom:12px"><span>${t("privateLink")}</span><div class="linkbox">${esc(familyLink())}</div></div>
+        <div class="row2"><button class="btn ghost" data-act="copy-link">${t("copy")}</button><button class="btn ghost" data-act="share-link">${t("share")}</button></div>
+        <p style="color:var(--muted);font-size:13px;margin:12px 0 0">${t("privateLinkDesc")}</p>
+        <button class="link" data-act="leave-space">${t("leaveSpace")}</button>` : ""}
       </div>
       <p style="color:var(--muted);font-size:13px;margin:4px 4px 0">${t("timerNote")}</p>
     </div>`;
 }
 
-function loginView() {
-  return `<form class="login" id="login-form" autocomplete="on">
+function welcomeView() {
+  return `<div class="login">
     <img class="logo" src="icons/icon-192.png" alt="">
     <h1>${t("appName")}</h1>
-    <label class="field"><span>${t("email")}</span><input class="input" name="email" type="email" autocomplete="username" required value="${esc(S.loginEmail)}"></label>
-    <label class="field"><span>${t("password")}</span><input class="input" name="password" type="password" autocomplete="current-password" required></label>
+    <p style="color:var(--muted);margin:-12px 0 24px">${t("welcomeDesc")}</p>
     ${S.err ? `<div class="err">${esc(S.err)}</div>` : ""}
-    <button class="btn" type="submit">${t("signIn")}</button>
+    <button class="btn" data-act="create-space">${t("createSpace")}</button>
+    <form id="join-form" style="margin-top:32px">
+      <label class="field"><span>${t("joinLabel")}</span><input class="input" name="code" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…#k=…"></label>
+      <button class="btn ghost" type="submit">${t("join")}</button>
+    </form>
     <button type="button" class="link" data-act="lang" data-v="${getLang() === "en" ? "zh" : "en"}">${getLang() === "en" ? "中文" : "English"}</button>
-  </form>`;
+  </div>`;
+}
+
+function connectErrView() {
+  return `<div class="login">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <h1>${t("appName")}</h1>
+    <div class="err">${esc(S.err || t("connectErr"))}</div>
+    <button class="btn" data-act="retry">${t("retry")}</button>
+  </div>`;
 }
 
 function tabbar() {
@@ -387,7 +448,8 @@ function render(force = false) {
   S.dirty = false;
   const app = $("#app");
   if (!S.authReady) { app.innerHTML = ""; return; }
-  if (!S.user) { app.innerHTML = loginView(); return; }
+  if (store.needsFamily && !S.family) { app.innerHTML = welcomeView(); return; }
+  if (!S.user) { app.innerHTML = connectErrView(); return; }
   const views = { home: homeView, history: historyView, trends: trendsView, settings: settingsView };
   const banner = store.mode === "local" ? `<div class="banner">${t("demoBanner")}</div>` : "";
   const y = window.scrollY;
@@ -457,7 +519,7 @@ function doSave(f) {
   const type = f.dataset.type, fd = new FormData(f);
   const ts = new Date(fd.get("when")).getTime();
   if (!Number.isFinite(ts)) return;
-  const log = { type, ts, by: S.user.email };
+  const log = { type, ts, by: myName() };
   if (type === "feed") { log.kind = fd.get("kind") === "formula" ? "formula" : "breast"; log.ml = Number(fd.get("ml")); }
   if (type === "pump") log.ml = Number(fd.get("ml"));
   if (type === "temp") log.c = Number(fd.get("c"));
@@ -470,18 +532,20 @@ function doSave(f) {
   if (type === "feed" && fd.get("startTimer")) startTimer();
 }
 
-async function doLogin(f) {
-  const fd = new FormData(f);
-  S.loginEmail = String(fd.get("email") || "").trim();
-  if (document.activeElement) document.activeElement.blur();
+function setFamily(code) {
+  S.family = code;
   S.err = "";
-  try {
-    await store.signIn(S.loginEmail, String(fd.get("password") || ""));
-  } catch (e) {
-    console.error(e);
-    S.err = t("signInErr");
-    render(true);
-  }
+  S.tab = "home";
+  localStorage.setItem(FAM_KEY, code);
+  history.replaceState(null, "", familyLink());
+  boot();
+}
+
+function doJoin(f) {
+  const code = parseCode(new FormData(f).get("code"));
+  if (!code) { S.err = t("invalidCode"); render(true); return; }
+  if (document.activeElement) document.activeElement.blur();
+  setFamily(code);
 }
 
 // ───────────────────────── events ─────────────────────────
@@ -512,7 +576,19 @@ document.addEventListener("click", (e) => {
       if (S.sound) { unlockAudio(); chime(CHIME.burp); }
       render(true); break;
     case "test-sound": unlockAudio(); chime(CHIME.burp); if (navigator.vibrate) navigator.vibrate(200); break;
-    case "signout": store.logOut(); break;
+    case "create-space": S.justCreated = true; setFamily(newCode()); break;
+    case "copy-link": copyLink(); break;
+    case "share-link": shareLink(); break;
+    case "dismiss-share": S.justCreated = false; render(true); break;
+    case "retry": S.err = ""; boot(); break;
+    case "leave-space":
+      if (confirm(t("leaveConfirm"))) {
+        localStorage.removeItem(FAM_KEY);
+        S.family = null; S.justCreated = false; S.tab = "home";
+        history.replaceState(null, "", location.pathname);
+        boot();
+      }
+      break;
     case "del":
       if (confirm(t("confirmDelete"))) { store.deleteLog(el.dataset.id); closeSheet(); toast(t("deleted")); }
       break;
@@ -521,7 +597,7 @@ document.addEventListener("click", (e) => {
 
 document.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (e.target.id === "login-form") doLogin(e.target);
+  if (e.target.id === "join-form") doJoin(e.target);
   else if (e.target.id === "sheet-form") doSave(e.target);
 });
 
@@ -529,6 +605,11 @@ document.addEventListener("change", (e) => {
   const k = e.target.dataset && e.target.dataset.set;
   if (!k) return;
   let v = e.target.value;
+  if (k === "myName") { // stored on this phone only
+    localStorage.setItem("bt_me", v.trim());
+    toast(t("settingsSaved"));
+    return;
+  }
   if (k === "relaxMin" || k === "burpMin") {
     v = Math.max(k === "burpMin" ? 1 : 0, Math.min(60, Math.round(Number(v) || 0)));
     e.target.value = v;
@@ -565,6 +646,26 @@ function startSync() {
   ];
 }
 
+let stopAuth = () => {};
+function boot() {
+  stopAuth();
+  unsubs.forEach((f) => f && f()); unsubs = [];
+  S.logs = []; S.timer = null; S.seen = null; S.user = null;
+  if (store.needsFamily && !S.family) { S.authReady = true; render(true); return; }
+  if (store.needsFamily) store.setFamily(S.family);
+  S.authReady = false;
+  render(true);
+  stopAuth = store.onAuth(
+    (u) => {
+      S.authReady = true; S.user = u; S.err = "";
+      unsubs.forEach((f) => f && f()); unsubs = [];
+      if (u) startSync();
+      render(true);
+    },
+    (e) => { console.error(e); S.err = t("connectErr"); S.authReady = true; S.user = null; render(true); }
+  );
+}
+
 async function init() {
   try {
     store = await import("./store.js");
@@ -573,12 +674,8 @@ async function init() {
     $("#app").innerHTML = `<div class="login"><h1>${t("appName")}</h1><p class="err">Couldn't load. Check your connection and Firebase config, then reload.</p></div>`;
     return;
   }
-  store.onAuth((u) => {
-    S.authReady = true; S.user = u;
-    unsubs.forEach((f) => f && f()); unsubs = [];
-    if (u) startSync(); else { S.logs = []; S.timer = null; S.seen = null; }
-    render(true);
-  });
+  S.family = store.needsFamily ? loadFamily() : null;
+  boot();
   setInterval(tick, 250);
   setInterval(() => { if (S.tab === "home" && S.user) render(); }, 30000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -8,9 +8,9 @@ const impl = isConfigured()
   : await import("./store-local.js");
 
 export const mode = impl.mode;
+export const needsFamily = impl.needsFamily;
+export const setFamily = impl.setFamily;
 export const onAuth = impl.onAuth;
-export const signIn = impl.signIn;
-export const logOut = impl.logOut;
 export const watchLogs = impl.watchLogs;
 export const addLog = impl.addLog;
 export const deleteLog = impl.deleteLog;
