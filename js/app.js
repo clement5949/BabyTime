@@ -41,7 +41,7 @@ let store;
 let unsubs = [];
 const S = {
   authReady: false, user: null, logs: [], timer: null,
-  settings: { babyName: "", relaxMin: 5, burpMin: 10, mlPerKg: 150 },
+  settings: { babyName: "", relaxMin: 5, burpMin: 10, mlPerKg: 150, feedEvery: 3 },
   tab: "home", filter: "all", range: 7,
   sound: localStorage.getItem("bt_sound") !== "off",
   seen: null, pulse: false, dirty: false, err: "", family: null, justCreated: false,
@@ -339,6 +339,56 @@ function usedOn(ts) {
   const k = dayKey(ts);
   return S.logs.filter((l) => l.type === "feed" && dayKey(l.ts) === k).reduce((s, l) => s + (Number(l.ml) || 0), 0);
 }
+// Suggested amount per feed. The doctor's daily number is a CEILING, so this is an "up to"
+// amount: what's still allowed today split over the feeds still to go (every 2 or 3 hours
+// from the last feed until midnight), but never more than an even share of the whole day,
+// so a small earlier feed never pushes the later ones bigger.
+function planInfo(now = Date.now()) {
+  const info = limitInfo();
+  if (!info) return null;
+  const h = Number(S.settings.feedEvery) === 2 ? 2 : 3;
+  const iv = h * 3600e3;
+  const left = info.limit - usedOn(now);
+  const lf = lastOf("feed");
+  const due = lf ? Math.max(lf.ts + iv, now) : now;
+  const endOfDay = startOfDay(now) + DAY;
+  const feedsLeft = due >= endOfDay ? 0 : Math.floor((endOfDay - due) / iv) + 1;
+  const even = info.limit / (24 / h);
+  const round5 = (x) => Math.round(x / 5) * 5;
+  let state = "ok", amount;
+  if (left <= 0) { state = "done"; amount = 0; }
+  else if (feedsLeft === 0) { state = "tomorrow"; amount = round5(even); }
+  else amount = Math.min(left, Math.max(5, round5(Math.min(left / feedsLeft, even))));
+  return { h, due, feedsLeft, amount, left, state, perDay: 24 / h };
+}
+
+function planBlock() {
+  const pl = planInfo();
+  if (!pl) return "";
+  const toggle = `<div class="seg" style="margin:14px 0 0">${[2, 3].map((h) =>
+    `<button type="button" class="${pl.h === h ? "on" : ""}" data-act="every" data-v="${h}">${t("everyH", { h })}</button>`).join("")}</div>`;
+  let amt, sub = "";
+  if (pl.state === "done") amt = `<div class="status" style="margin:4px 0 0">${t("planDone")}</div>`;
+  else {
+    amt = `<div class="planamt">${t("upTo", { n: pl.amount })}</div>`;
+    sub = pl.state === "tomorrow"
+      ? t("planTomorrow", { k: pl.perDay })
+      : t("planDetail", { n: pl.feedsLeft, when: pl.due <= Date.now() + 60000 ? t("dueNow") : timeStr(pl.due) });
+  }
+  return `<div class="plan"><div class="label">${t("planTitle")}</div>${amt}${sub ? `<div class="meta">${sub}</div>` : ""}${toggle}
+    <div class="meta" style="margin-top:12px">${t("planNote")} <button type="button" class="linkbtn" data-act="tips">${t("tipsLink")}</button></div></div>`;
+}
+
+function tipsSheet() {
+  $("#sheet-root").innerHTML = `<div class="backdrop" data-act="close"></div>
+    <div class="sheet"><div class="grab"></div>
+      <h3>${t("tipsTitle")}</h3>
+      <ul class="tips">${[1, 2, 3, 4, 5, 6].map((i) => `<li>${t("tip" + i)}</li>`).join("")}</ul>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 16px">${t("tipsSource")}</p>
+      <button class="btn" data-act="close">${t("ok")}</button>
+    </div>`;
+}
+
 function budgetCard() {
   const used = usedOn(Date.now()), info = limitInfo();
   if (!info) {
@@ -358,7 +408,8 @@ function budgetCard() {
     <div class="big">${used}<small>/ ${info.limit} ml</small></div>
     <div class="bar"><i style="width:${pct}%"></i></div>
     <div class="status">${text}</div>
-    <div class="meta" style="margin-top:6px">${t("basedOn", { w: info.kg.toFixed(2), k: info.per })}</div>
+    ${planBlock()}
+    <div class="meta" style="margin-top:12px">${t("basedOn", { w: info.kg.toFixed(2), k: info.per })}</div>
   </div>`;
 }
 
@@ -569,6 +620,8 @@ function closeSheet() { $("#sheet-root").innerHTML = ""; }
 function sheetHTML(type) {
   const T = TYPES[type];
   const last = lastOf(type);
+  const pl = type === "feed" ? planInfo() : null;
+  const sug = pl && pl.amount > 0 ? pl.amount : 0;
   let fields = "";
   if (type === "feed") {
     fields += `<div class="seg"><button type="button" class="on" data-act="kind" data-v="breast">${t("breastMilk")}</button><button type="button" data-act="kind" data-v="formula">${t("formula")}</button></div><input type="hidden" name="kind" value="breast">`;
@@ -577,7 +630,7 @@ function sheetHTML(type) {
     const amts = type === "feed" ? [60, 90, 120, 150] : [60, 100, 150, 200];
     fields += `<div class="field"><span>${t("amountMl")}</span>
       <input class="input" name="ml" type="number" inputmode="numeric" min="1" max="1000" step="1" required placeholder="0" value="${last ? esc(last.ml) : ""}" aria-label="${t("amountMl")}">
-      <div class="amts">${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div>${type === "feed" ? `<div class="hint" id="budget-hint"></div>` : ""}</div>`;
+      <div class="amts">${sug ? `<button type="button" class="chip sug" data-act="amt" data-v="${sug}">${t("suggested", { n: sug })}</button>` : ""}${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div>${type === "feed" ? `<div class="hint" id="budget-hint"></div>` : ""}</div>`;
   }
   if (type === "temp") fields += `<label class="field"><span>${t("tempC")}</span><input class="input" name="c" type="number" inputmode="decimal" min="30" max="45" step="0.1" required placeholder="36.8"></label>`;
   if (type === "weight") fields += `<label class="field"><span>${t("weightKg")}</span><input class="input" name="kg" type="number" inputmode="decimal" min="0.5" max="30" step="0.01" required placeholder="4.50"></label>`;
@@ -707,6 +760,11 @@ document.addEventListener("click", (e) => {
       $("#sheet-form input[name=kind]").value = v; break;
     }
     case "amt": { const i = $("#sheet-form input[name=ml]"); i.value = v; updateBudgetHint(); break; }
+    case "every":
+      S.settings = { ...S.settings, feedEvery: Number(v) };
+      store.saveSettings({ feedEvery: Number(v) });
+      render(true); break;
+    case "tips": tipsSheet(); break;
     case "quick": quickLog(v); break;
     case "undo":
       if (S.undoId) { store.deleteLog(S.undoId); S.undoId = null; S.q = null; }
