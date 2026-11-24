@@ -345,9 +345,9 @@ function limitInfo() {
   const per = Number(S.settings.mlPerKg) || 150;
   return { kg, per, limit: Math.round(kg * per) };
 }
-function usedOn(ts) {
+function usedOn(ts, skipId) {
   const k = dayKey(ts);
-  return S.logs.filter((l) => l.type === "feed" && dayKey(l.ts) === k).reduce((s, l) => s + (Number(l.ml) || 0), 0);
+  return S.logs.filter((l) => l.type === "feed" && l.id !== skipId && dayKey(l.ts) === k).reduce((s, l) => s + (Number(l.ml) || 0), 0);
 }
 // Suggested amount per feed. The doctor's daily number is a CEILING, so this is an "up to"
 // amount: what's still allowed today split over the feeds still to go (every 2 or 3 hours
@@ -659,35 +659,37 @@ function amtChips(type, fallback) {
   return top.length >= 3 ? top : fallback;
 }
 
-function sheetHTML(type) {
+function sheetHTML(type, e = null) {
   const T = TYPES[type];
   const last = lastOf(type);
   const pl = type === "feed" ? planInfo() : null;
   const sug = pl && pl.amount > 0 ? pl.amount : 0;
   let fields = "";
   if (type === "feed") {
-    fields += `<div class="seg"><button type="button" class="on" data-act="kind" data-v="breast">${t("breastMilk")}</button><button type="button" data-act="kind" data-v="formula">${t("formula")}</button></div><input type="hidden" name="kind" value="breast">`;
+    const fk = e && e.kind === "formula" ? "formula" : "breast";
+    fields += `<div class="seg"><button type="button" class="${fk === "breast" ? "on" : ""}" data-act="kind" data-v="breast">${t("breastMilk")}</button><button type="button" class="${fk === "formula" ? "on" : ""}" data-act="kind" data-v="formula">${t("formula")}</button></div><input type="hidden" name="kind" value="${fk}">`;
   }
   if (type === "feed" || type === "pump") {
     const amts = amtChips(type, type === "feed" ? [30, 45, 60, 90, 120] : [60, 100, 150, 200]);
     fields += `<div class="field"><span>${t("amountMl")}</span>
-      <input class="input" name="ml" type="number" inputmode="numeric" min="1" max="1000" step="1" required placeholder="0" value="${last ? esc(last.ml) : ""}" aria-label="${t("amountMl")}">
+      <input class="input" name="ml" type="number" inputmode="numeric" min="1" max="1000" step="1" required placeholder="0" value="${e ? esc(e.ml) : last ? esc(last.ml) : ""}" aria-label="${t("amountMl")}">
       <div class="amts">${sug ? `<button type="button" class="chip sug" data-act="amt" data-v="${sug}">${t("suggested", { n: sug })}</button>` : ""}${amts.map((a) => `<button type="button" class="chip" data-act="amt" data-v="${a}">${a}</button>`).join("")}</div>${type === "feed" ? `<div class="hint" id="budget-hint"></div>` : ""}</div>`;
   }
-  if (type === "temp") fields += `<label class="field"><span>${t("tempC")}</span><input class="input" name="c" type="number" inputmode="decimal" min="30" max="45" step="0.1" required placeholder="36.8"></label>`;
-  if (type === "weight") fields += `<label class="field"><span>${t("weightKg")}</span><input class="input" name="kg" type="number" inputmode="decimal" min="0.5" max="30" step="0.01" required placeholder="4.50"></label>`;
+  if (type === "temp") fields += `<label class="field"><span>${t("tempC")}</span><input class="input" name="c" type="number" inputmode="decimal" min="30" max="45" step="0.1" required placeholder="36.8" value="${e ? esc(e.c) : ""}"></label>`;
+  if (type === "weight") fields += `<label class="field"><span>${t("weightKg")}</span><input class="input" name="kg" type="number" inputmode="decimal" min="0.5" max="30" step="0.01" required placeholder="4.50" value="${e ? esc(e.kg) : ""}"></label>`;
   if (type === "diaper") {
-    fields += `<div class="field"><span>${t("poop")}</span><div class="seg" style="margin-bottom:0"><button type="button" class="on" data-act="poop" data-v="">${t("poopNone")}</button>${["s", "m", "l"].map((s) => `<button type="button" data-act="poop" data-v="${s}">${s.toUpperCase()}</button>`).join("")}</div><input type="hidden" name="poop" value=""></div>
-      <div class="field"><span>${t("creamLabel")}</span><label class="check"><input type="checkbox" name="bep"${S.cream.bep ? " checked" : ""}> ${t("bepanthen")}</label><label class="check"><input type="checkbox" name="sudo"${S.cream.sudo ? " checked" : ""}> ${t("sudocrem")}</label></div>`;
+    const pv = e ? e.poop || "" : "", bep = e ? !!e.bep : S.cream.bep, sudo = e ? !!e.sudo : S.cream.sudo;
+    fields += `<div class="field"><span>${t("poop")}</span><div class="seg" style="margin-bottom:0"><button type="button" class="${pv === "" ? "on" : ""}" data-act="poop" data-v="">${t("poopNone")}</button>${["s", "m", "l"].map((s) => `<button type="button" class="${pv === s ? "on" : ""}" data-act="poop" data-v="${s}">${s.toUpperCase()}</button>`).join("")}</div><input type="hidden" name="poop" value="${esc(pv)}"></div>
+      <div class="field"><span>${t("creamLabel")}</span><label class="check"><input type="checkbox" name="bep"${bep ? " checked" : ""}> ${t("bepanthen")}</label><label class="check"><input type="checkbox" name="sudo"${sudo ? " checked" : ""}> ${t("sudocrem")}</label></div>`;
   }
-  fields += `<label class="field" style="margin-bottom:10px"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(Date.now())}"></label>
+  fields += `<label class="field" style="margin-bottom:10px"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(e ? e.ts : Date.now())}"></label>
     <div class="amts" style="margin-bottom:16px">${[0, 15, 30, 60, 120].map((m) => `<button type="button" class="chip" data-act="ago" data-v="${m}">${m ? t("ago", { t: m < 60 ? t("mOnly", { m }) : t("hOnly", { h: m / 60 }) }) : t("nowChip")}</button>`).join("")}</div>`;
-  fields += `<label class="field"><span>${t("note")}</span><textarea class="input" name="note" maxlength="200"></textarea></label>`;
-  if (type === "feed") fields += `<label class="check"><input type="checkbox" name="startTimer"> ${t("startTimerAfter")}</label>`;
+  fields += `<label class="field"><span>${t("note")}</span><textarea class="input" name="note" maxlength="200">${e ? esc(e.note || "") : ""}</textarea></label>`;
+  if (type === "feed" && !e) fields += `<label class="check"><input type="checkbox" name="startTimer"> ${t("startTimerAfter")}</label>`;
   return `<div class="backdrop" data-act="close"></div>
-    <form class="sheet" id="sheet-form" data-type="${type}">
+    <form class="sheet" id="sheet-form" data-type="${type}"${e ? ` data-edit="${esc(e.id)}"` : ""}>
       <div class="grab"></div>
-      <h3><span class="ico ${T.cls}">${svg(T.icon)}</span>${t(type)}</h3>
+      <h3><span class="ico ${T.cls}">${svg(T.icon)}</span>${e ? `${t("edit")} · ` : ""}${t(type)}</h3>
       ${fields}
       <button class="btn" type="submit">${t("save")}</button>
       <button class="link" type="button" data-act="close">${t("cancel")}</button>
@@ -707,8 +709,7 @@ function entrySheet(id) {
         <div class="big">${esc(T.value(l))}</div>
         ${rows.map((r) => `<div class="meta" style="font-size:15px;margin-top:6px">${esc(r[0])}</div>`).join("")}
       </div>
-      <label class="field"><span>${t("editTime")}</span><input class="input" id="entry-when" type="datetime-local" value="${toLocalInput(l.ts)}"></label>
-      <button class="btn" data-act="save-time" data-id="${esc(l.id)}" style="margin-bottom:12px">${t("saveTime")}</button>
+      <button class="btn" data-act="edit" data-id="${esc(l.id)}" style="margin-bottom:12px">${t("edit")}</button>
       <button class="btn danger" data-act="del" data-id="${esc(l.id)}">${t("del")}</button>
       <button class="link" data-act="close">${t("cancel")}</button>
     </div>`;
@@ -720,7 +721,7 @@ function updateBudgetHint() {
   const info = limitInfo(), ml = Number(f.elements.ml && f.elements.ml.value) || 0;
   if (!info || !ml) { h.textContent = ""; h.className = "hint"; return; }
   const ts = new Date(f.elements.when.value).getTime();
-  const left = info.limit - usedOn(Number.isFinite(ts) ? ts : Date.now()) - ml;
+  const left = info.limit - usedOn(Number.isFinite(ts) ? ts : Date.now(), f.dataset.edit) - ml;
   h.className = "hint " + (left < 0 ? "over" : "ok");
   h.textContent = left < 0 ? t("goesOver", { n: -left }) : left === 0 ? t("hitsLimit") : t("afterFeed", { n: left });
 }
@@ -828,34 +829,39 @@ function doSave(f) {
   const type = f.dataset.type, fd = new FormData(f);
   const ts = new Date(fd.get("when")).getTime();
   if (!Number.isFinite(ts)) return;
-  const log = { type, ts, by: myName() };
+  const editId = f.dataset.edit || "";
+  const log = { type, ts };
+  if (!editId) log.by = myName();
   if (type === "feed") { log.kind = fd.get("kind") === "formula" ? "formula" : "breast"; log.ml = Number(fd.get("ml")); }
   if (type === "pump") log.ml = Number(fd.get("ml"));
   if (type === "temp") log.c = Number(fd.get("c"));
   if (type === "weight") log.kg = Number(fd.get("kg"));
   if (type === "diaper") {
     const p = String(fd.get("poop") || "");
-    if (["s", "m", "l"].includes(p)) log.poop = p;
-    if (fd.get("bep")) log.bep = true;
-    if (fd.get("sudo")) log.sudo = true;
+    if (editId) { log.poop = ["s", "m", "l", "u"].includes(p) ? p : ""; log.bep = !!fd.get("bep"); log.sudo = !!fd.get("sudo"); }
+    else {
+      if (["s", "m", "l"].includes(p)) log.poop = p;
+      if (fd.get("bep")) log.bep = true;
+      if (fd.get("sudo")) log.sudo = true;
+    }
   }
   const note = String(fd.get("note") || "").trim();
-  if (note) log.note = note;
+  if (note || editId) log.note = note; // when editing, an empty note clears the old one
   let msg = t("saved"), ms = 2400, kind = "";
   if (type === "feed") {
     const info = limitInfo();
     if (info) {
-      const left = info.limit - usedOn(ts) - log.ml; // computed before this entry is added
+      const left = info.limit - usedOn(ts, editId) - log.ml; // computed before this entry is added
       ms = 6000;
       if (left < 0) { msg = t("savedOver", { n: -left }); kind = "warn"; ms = 9000; }
       else if (left === 0) { msg = t("savedLimit"); kind = "warn"; }
       else msg = t("savedLeft", { n: left });
     }
   }
-  store.addLog(log);
+  if (editId) store.updateLog(editId, log); else store.addLog(log);
   closeSheet();
   toast(msg, ms, null, kind);
-  if (type === "feed" && fd.get("startTimer")) startTimer();
+  if (type === "feed" && !editId && fd.get("startTimer")) startTimer();
 }
 
 function setFamily(code) {
@@ -887,6 +893,11 @@ document.addEventListener("click", (e) => {
     case "range": S.range = Number(v); render(true); break;
     case "open": openSheet(v); break;
     case "entry": entrySheet(el.dataset.id); break;
+    case "edit": {
+      const l = S.logs.find((x) => x.id === el.dataset.id);
+      if (l && TYPES[l.type]) { $("#sheet-root").innerHTML = sheetHTML(l.type, l); updateBudgetHint(); }
+      break;
+    }
     case "close": closeSheet(); break;
     case "kind": {
       el.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === el));
