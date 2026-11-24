@@ -688,7 +688,7 @@ function sheetHTML(type) {
   fields += `<label class="field" style="margin-bottom:10px"><span>${t("when")}</span><input class="input" name="when" type="datetime-local" required value="${toLocalInput(Date.now())}"></label>
     <div class="amts" style="margin-bottom:16px">${[0, 15, 30, 60, 120].map((m) => `<button type="button" class="chip" data-act="ago" data-v="${m}">${m ? t("ago", { t: m < 60 ? t("mOnly", { m }) : t("hOnly", { h: m / 60 }) }) : t("nowChip")}</button>`).join("")}</div>`;
   fields += `<label class="field"><span>${t("note")}</span><textarea class="input" name="note" maxlength="200"></textarea></label>`;
-  if (type === "feed") fields += `<label class="check"><input type="checkbox" name="startTimer" checked> ${t("startTimerAfter")}</label>`;
+  if (type === "feed") fields += `<label class="check"><input type="checkbox" name="startTimer"> ${t("startTimerAfter")}</label>`;
   return `<div class="backdrop" data-act="close"></div>
     <form class="sheet" id="sheet-form" data-type="${type}">
       <div class="grab"></div>
