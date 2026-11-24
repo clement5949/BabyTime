@@ -363,12 +363,11 @@ function planInfo(now = Date.now()) {
   const due = lf ? Math.max(lf.ts + iv, now) : now;
   const endOfDay = startOfDay(now) + DAY;
   const feedsLeft = due >= endOfDay ? 0 : Math.floor((endOfDay - due) / iv) + 1;
-  const even = info.limit / (24 / h);
-  const round5 = (x) => Math.round(x / 5) * 5;
-  let state = "ok", amount;
-  if (left <= 0) { state = "done"; amount = 0; }
-  else if (feedsLeft === 0) { state = "tomorrow"; amount = round5(even); }
-  else amount = Math.min(left, Math.max(5, round5(Math.min(left / feedsLeft, even))));
+  // Fixed per-feed amount: an equal share of the daily limit, rounded DOWN to 5 ml so a full
+  // day of feeds never goes over. It does not change with how much was already fed today
+  // (the milk card above shows what is left and warns if the limit is passed).
+  const amount = Math.max(5, Math.floor(info.limit / (24 / h) / 5) * 5);
+  const state = feedsLeft === 0 ? "tomorrow" : "ok";
   return { h, due, feedsLeft, amount, left, state, perDay: 24 / h };
 }
 
@@ -377,14 +376,10 @@ function planBlock() {
   if (!pl) return "";
   const toggle = `<div class="seg" style="margin:14px 0 0">${[2, 3].map((h) =>
     `<button type="button" class="${pl.h === h ? "on" : ""}" data-act="every" data-v="${h}">${t("everyH", { h })}</button>`).join("")}</div>`;
-  let amt, sub = "";
-  if (pl.state === "done") amt = `<div class="status" style="margin:4px 0 0">${t("planDone")}</div>`;
-  else {
-    amt = `<div class="planamt">${t("upTo", { n: pl.amount })}</div>`;
-    sub = pl.state === "tomorrow"
-      ? t("planTomorrow", { k: pl.perDay })
-      : t("planDetail", { n: pl.feedsLeft, when: pl.due <= Date.now() + 60000 ? t("dueNow") : timeStr(pl.due) });
-  }
+  const amt = `<div class="planamt">${t("upTo", { n: pl.amount })}</div>`;
+  const sub = pl.state === "tomorrow"
+    ? t("planTomorrow", { k: pl.perDay })
+    : t("planDetail", { n: pl.feedsLeft, when: pl.due <= Date.now() + 60000 ? t("dueNow") : timeStr(pl.due) });
   return `<div class="plan"><div class="label">${t("planTitle")}</div>${amt}${sub ? `<div class="meta">${sub}</div>` : ""}${toggle}
     <div class="meta" style="margin-top:12px">${t("planNote")} <button type="button" class="linkbtn" data-act="tips">${t("tipsLink")}</button></div></div>`;
 }
